@@ -1,0 +1,19 @@
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.message-list::-webkit-scrollbar {
+  width: 6px;
+}
+.message-list::-webkit-scrollbar-thumb {
+  background: #d1d1d1;
+  border-radius: 4px;
+}
+
+.message-list-inner {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 20px;
+}
