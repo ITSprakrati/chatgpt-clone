@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import MessageList from './MessageList';
@@ -13,6 +14,7 @@ export default function Chat() {
   const [activeId, setActiveId] = useState(1);
   const [messageMap, setMessageMap] = useState({ 1: [] });
   const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
   const bottomRef = useRef(null);
 
   const messages = messageMap[activeId] ?? [];
@@ -21,41 +23,30 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
+  const closeSidebarOnMobile = () => {
+    if (window.innerWidth <= 768) setSidebarOpen(false);
+  };
+
   const handleSend = useCallback(async (text) => {
     const userMsg = { id: uid(), role: 'user', content: text, ts: Date.now() };
+    setMessageMap((prev) => ({ ...prev, [activeId]: [...(prev[activeId] ?? []), userMsg] }));
 
-    setMessageMap((prev) => ({
-      ...prev,
-      [activeId]: [...(prev[activeId] ?? []), userMsg],
-    }));
-
-    // use first message as session title
     if (messages.length === 0) {
       const title = text.length > 36 ? text.slice(0, 36) + '…' : text;
-      setSessions((prev) =>
-        prev.map((s) => (s.id === activeId ? { ...s, title } : s))
-      );
+      setSessions((prev) => prev.map((s) => (s.id === activeId ? { ...s, title } : s)));
     }
 
     setLoading(true);
     try {
       const reply = await sendMessage(text);
-      const assistantMsg = { id: uid(), role: 'assistant', content: reply, ts: Date.now() };
       setMessageMap((prev) => ({
         ...prev,
-        [activeId]: [...(prev[activeId] ?? []), assistantMsg],
+        [activeId]: [...(prev[activeId] ?? []), { id: uid(), role: 'assistant', content: reply, ts: Date.now() }],
       }));
-    } catch (err) {
-      const errMsg = {
-        id: uid(),
-        role: 'assistant',
-        content: 'Something went wrong. Please try again.',
-        error: true,
-        ts: Date.now(),
-      };
+    } catch {
       setMessageMap((prev) => ({
         ...prev,
-        [activeId]: [...(prev[activeId] ?? []), errMsg],
+        [activeId]: [...(prev[activeId] ?? []), { id: uid(), role: 'assistant', content: 'Something went wrong. Please try again.', error: true, ts: Date.now() }],
       }));
     } finally {
       setLoading(false);
@@ -68,17 +59,42 @@ export default function Chat() {
     setMessageMap((prev) => ({ ...prev, [id]: [] }));
     setActiveId(id);
     resetHistory();
+    closeSidebarOnMobile();
+  };
+
+  const handleSelectSession = (id) => {
+    setActiveId(id);
+    closeSidebarOnMobile();
   };
 
   return (
     <div className="layout">
-      <Sidebar
-        sessions={sessions}
-        activeId={activeId}
-        onSelect={setActiveId}
-        onNewChat={handleNewChat}
-      />
+      {sidebarOpen && (
+        <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      <div className={`sidebar-container ${sidebarOpen ? '' : 'sidebar-container--closed'}`}>
+        <Sidebar
+          sessions={sessions}
+          activeId={activeId}
+          onSelect={handleSelectSession}
+          onNewChat={handleNewChat}
+        />
+      </div>
+
       <div className="main">
+        <button
+          className="sidebar-toggle"
+          onClick={() => setSidebarOpen((o) => !o)}
+          aria-label="Toggle sidebar"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+
         {messages.length === 0 ? (
           <div className="empty-state">
             <p className="empty-heading">What can I help with?</p>
@@ -86,6 +102,7 @@ export default function Chat() {
         ) : (
           <MessageList messages={messages} loading={loading} bottomRef={bottomRef} />
         )}
+
         <div className={`input-wrap ${messages.length === 0 ? 'input-wrap--centered' : ''}`}>
           <InputBar onSend={handleSend} disabled={loading} />
           <p className="disclaimer">ChatGPT can make mistakes. Consider checking important information.</p>
